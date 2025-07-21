@@ -133,22 +133,34 @@ class ONVIFCameraDiscovery:
         try:
             network = IPv4Network(network_range, strict=False)
             
-            # Use ThreadPoolExecutor for parallel scanning
-            with ThreadPoolExecutor(max_workers=50) as executor:
-                futures = []
+            # ❗️ FIX: Use asyncio for proper async port scanning with timeouts
+            tasks = []
+            semaphore = asyncio.Semaphore(50)  # Limit concurrent connections
+            
+            async def check_port_async(ip: str, port: int):
+                async with semaphore:
+                    return await self._check_camera_port_async(ip, port)
+            
+            for ip in network.hosts():
+                for port in common_ports:
+                    task = check_port_async(str(ip), port)
+                    tasks.append(task)
+            
+            # ❗️ FIX: Use asyncio.gather with timeout to prevent hanging
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=self.timeout * 2
+                )
                 
-                for ip in network.hosts():
-                    for port in common_ports:
-                        future = executor.submit(self._check_camera_port, str(ip), port)
-                        futures.append(future)
-                
-                for future in as_completed(futures, timeout=self.timeout * 2):
-                    try:
-                        result = future.result()
-                        if result:
-                            cameras.append(result)
-                    except Exception as e:
-                        logger.debug(f"Port scan error: {e}")
+                for result in results:
+                    if isinstance(result, CameraInfo):
+                        cameras.append(result)
+                    elif isinstance(result, Exception):
+                        logger.debug(f"Port scan error: {result}")
+                        
+            except asyncio.TimeoutError:
+                logger.warning(f"Port scan timed out after {self.timeout * 2} seconds")
                         
         except Exception as e:
             logger.error(f"Port scan discovery failed: {e}")
@@ -178,6 +190,34 @@ class ONVIFCameraDiscovery:
                         media_service_url=""
                     )
         except Exception:
+            pass
+        
+        return None
+
+    async def _check_camera_port_async(self, ip: str, port: int) -> Optional[CameraInfo]:
+        """❗️ FIX: Async version of port checking with proper timeout handling"""
+        try:
+            # Use asyncio's non-blocking stream functions with timeout
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port), timeout=2
+            )
+            writer.close()
+            await writer.wait_closed()
+            
+            # Port is open, try to identify if it's a camera
+            if await self._is_camera_service_async(ip, port):
+                return CameraInfo(
+                    ip_address=ip,
+                    port=port,
+                    manufacturer="Unknown",
+                    model="Unknown",
+                    firmware_version="Unknown",
+                    stream_urls=[],
+                    onvif_supported=False,
+                    device_service_url="",
+                    media_service_url=""
+                )
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
             pass
         
         return None
@@ -213,6 +253,46 @@ class ONVIFCameraDiscovery:
                     
         except Exception:
             pass
+        
+        return False
+
+    async def _is_camera_service_async(self, ip: str, port: int) -> bool:
+        """❗️ FIX: Async version of camera service detection with timeout"""
+        try:
+            import aiohttp
+            timeout = aiohttp.ClientTimeout(total=3)
+            
+            # Try common camera endpoints
+            camera_endpoints = [
+                f"http://{ip}:{port}/",
+                f"http://{ip}:{port}/web/",
+                f"http://{ip}:{port}/cgi-bin/",
+                f"http://{ip}:{port}/onvif/device_service"
+            ]
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                for endpoint in camera_endpoints:
+                    try:
+                        async with session.get(endpoint) as response:
+                            content = await response.text()
+                            content_lower = content.lower()
+                            
+                            # Look for camera-related keywords
+                            camera_keywords = [
+                                'camera', 'video', 'stream', 'onvif', 'rtsp',
+                                'surveillance', 'security', 'axis', 'hikvision',
+                                'dahua', 'bosch', 'sony', 'panasonic'
+                            ]
+                            
+                            if any(keyword in content_lower for keyword in camera_keywords):
+                                return True
+                                
+                    except Exception:
+                        continue
+                        
+        except Exception:
+            # Fallback to sync version if aiohttp not available
+            return self._is_camera_service(ip, port)
         
         return False
 

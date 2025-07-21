@@ -8,6 +8,7 @@ from typing import List, Optional
 import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from app.schemas import (
     CurrentUser, MessageResponse,
@@ -100,12 +101,17 @@ async def get_cameras(
     try:
         db_manager = DatabaseManager()
         
+        # Handle null/invalid filters gracefully
         if active_only:
             cameras = db_manager.get_active_cameras()
-        elif status_filter:
+        elif status_filter and status_filter.strip():  # Check for empty/whitespace strings
             cameras = db_manager.get_cameras_by_status(status_filter)
         else:
             cameras = db_manager.get_all_cameras()
+        
+        # Ensure cameras is not None
+        if cameras is None:
+            cameras = []
         
         # Convert to response format
         camera_infos = []
@@ -724,8 +730,10 @@ async def reload_camera_configurations(
     (Super Admin only)
     """
     try:
-        # Import here to avoid circular imports
-        from core.fts_system import system_instance
+        # Delayed import to avoid circular imports
+        import importlib
+        fts_module = importlib.import_module('core.fts_system')
+        system_instance = getattr(fts_module, 'system_instance', None)
         
         if system_instance:
             system_instance.reload_camera_configurations()
@@ -934,9 +942,12 @@ async def update_camera_settings(
                 detail="Failed to update camera settings"
             )
         
-        # If FTS is running, reload camera configurations
+        # If FTS is running, reload camera configurations (delayed import)
         try:
-            from core.fts_system import system_instance, is_tracking_running
+            import importlib
+            fts_module = importlib.import_module('core.fts_system')
+            system_instance = getattr(fts_module, 'system_instance', None)
+            is_tracking_running = getattr(fts_module, 'is_tracking_running', False)
             if is_tracking_running and system_instance:
                 # Trigger camera config reload in FTS
                 system_instance.reload_camera_configurations()
@@ -1209,4 +1220,276 @@ async def get_fts_configured_cameras(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get FTS configured cameras: {str(e)}"
+        )
+
+@router.get("/system/camera-statistics")
+async def get_camera_statistics(
+    current_user: CurrentUser = Depends(require_super_admin)
+):
+    """
+    Get comprehensive camera system statistics (Super Admin only)
+    """
+    try:
+        db_manager = DatabaseManager()
+        
+        # Get all cameras
+        all_cameras = db_manager.get_all_cameras()
+        
+        # Get auto-detected cameras
+        try:
+            from backend.utils.auto_camera_detector import get_auto_detector
+            auto_detector = get_auto_detector()
+            detected_cameras = auto_detector.get_detected_cameras()
+        except ImportError:
+            detected_cameras = []
+        
+        # Calculate statistics
+        stats = {
+            "total_cameras": len(all_cameras),
+            "active_cameras": len([c for c in all_cameras if c.is_active]),
+            "inactive_cameras": len([c for c in all_cameras if not c.is_active]),
+            "detected_cameras": len(detected_cameras),
+            "camera_types": {},
+            "resolution_distribution": {},
+            "fps_distribution": {},
+            "gpu_distribution": {}
+        }
+        
+        # Analyze camera types
+        for camera in all_cameras:
+            camera_type = camera.camera_type or "unknown"
+            stats["camera_types"][camera_type] = stats["camera_types"].get(camera_type, 0) + 1
+            
+            # Resolution distribution
+            resolution = f"{camera.resolution_width}x{camera.resolution_height}"
+            stats["resolution_distribution"][resolution] = stats["resolution_distribution"].get(resolution, 0) + 1
+            
+            # FPS distribution
+            fps = str(camera.fps)
+            stats["fps_distribution"][fps] = stats["fps_distribution"].get(fps, 0) + 1
+            
+            # GPU distribution
+            gpu = f"GPU {camera.gpu_id}"
+            stats["gpu_distribution"][gpu] = stats["gpu_distribution"].get(gpu, 0) + 1
+        
+        return {
+            "success": True,
+            "statistics": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get camera statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get camera statistics: {str(e)}"
+        )
+
+@router.post("/system/bulk-configure")
+async def bulk_configure_cameras(
+    configurations: List[CameraConfigurationRequest],
+    current_user: CurrentUser = Depends(require_super_admin)
+):
+    """
+    Bulk configure multiple cameras (Super Admin only)
+    """
+    try:
+        db_manager = DatabaseManager()
+        results = []
+        
+        for config in configurations:
+            try:
+                # Create camera configuration
+                camera_data = {
+                    "name": config.camera_name,
+                    "camera_type": config.camera_type,
+                    "location_description": config.location_description,
+                    "stream_url": config.stream_url,
+                    "username": config.username,
+                    "password": config.password,
+                    "resolution_width": config.resolution_width,
+                    "resolution_height": config.resolution_height,
+                    "fps": config.fps,
+                    "gpu_id": config.gpu_id
+                }
+                
+                camera = db_manager.create_camera(camera_data)
+                
+                # Add tripwires if specified
+                if config.tripwires:
+                    for tripwire_data in config.tripwires:
+                        tripwire_dict = {
+                            "camera_id": camera.camera_id,
+                            "name": tripwire_data.name,
+                            "position": tripwire_data.position,
+                            "direction": tripwire_data.direction,
+                            "spacing": tripwire_data.spacing
+                        }
+                        db_manager.create_tripwire(tripwire_dict)
+                
+                results.append({
+                    "camera_name": config.camera_name,
+                    "camera_id": camera.camera_id,
+                    "status": "success"
+                })
+                
+            except Exception as e:
+                results.append({
+                    "camera_name": config.camera_name,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        success_count = len([r for r in results if r["status"] == "success"])
+        
+        return {
+            "success": True,
+            "message": f"Bulk configuration completed: {success_count}/{len(configurations)} cameras configured",
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Bulk camera configuration failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bulk configuration failed: {str(e)}"
+        )
+
+@router.post("/system/reset-all-cameras")
+async def reset_all_cameras(
+    confirm: bool = False,
+    current_user: CurrentUser = Depends(require_super_admin)
+):
+    """
+    Reset all camera configurations (Super Admin only)
+    WARNING: This will delete all camera configurations!
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to reset all cameras"
+        )
+    
+    try:
+        db_manager = DatabaseManager()
+        
+        # Get count before deletion
+        cameras = db_manager.get_all_cameras()
+        count = len(cameras)
+        
+        # Delete all cameras (this should cascade to tripwires)
+        for camera in cameras:
+            db_manager.delete_camera(camera.camera_id)
+        
+        logger.warning(f"Super admin {current_user.username} reset all {count} camera configurations")
+        
+        return MessageResponse(
+            message=f"Successfully reset {count} camera configurations",
+            success=True
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to reset cameras: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset cameras: {str(e)}"
+        )
+
+@router.get("/system/health-check")
+async def camera_system_health_check(
+    current_user: CurrentUser = Depends(require_super_admin)
+):
+    """
+    Comprehensive camera system health check (Super Admin only)
+    """
+    try:
+        health_status = {
+            "overall_status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "checks": {}
+        }
+        
+        # Check database connectivity
+        try:
+            db_manager = DatabaseManager()
+            cameras = db_manager.get_all_cameras()
+            health_status["checks"]["database"] = {
+                "status": "healthy",
+                "cameras_count": len(cameras)
+            }
+        except Exception as e:
+            health_status["checks"]["database"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+            health_status["overall_status"] = "unhealthy"
+        
+        # Check auto camera detector
+        try:
+            from backend.utils.auto_camera_detector import get_auto_detector
+            auto_detector = get_auto_detector()
+            detected = auto_detector.get_detected_cameras()
+            health_status["checks"]["auto_detector"] = {
+                "status": "healthy",
+                "detected_count": len(detected)
+            }
+        except Exception as e:
+            health_status["checks"]["auto_detector"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        
+        # Check FTS integration
+        try:
+            import importlib
+            fts_module = importlib.import_module('core.fts_system')
+            is_running = getattr(fts_module, 'is_tracking_running', lambda: False)()
+            health_status["checks"]["fts_system"] = {
+                "status": "healthy",
+                "tracking_running": is_running
+            }
+        except Exception as e:
+            health_status["checks"]["fts_system"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        
+        # Check streaming capabilities
+        try:
+            from app.routers.streaming import detect_cameras
+            stream_cameras = detect_cameras()
+            health_status["checks"]["streaming"] = {
+                "status": "healthy",
+                "available_cameras": len(stream_cameras)
+            }
+        except Exception as e:
+            health_status["checks"]["streaming"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        
+        # Check camera discovery
+        try:
+            from utils.camera_discovery import ONVIFCameraDiscovery
+            discovery = ONVIFCameraDiscovery(timeout=2)
+            health_status["checks"]["camera_discovery"] = {
+                "status": "healthy",
+                "discovery_available": True
+            }
+        except Exception as e:
+            health_status["checks"]["camera_discovery"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        
+        return {
+            "success": True,
+            "health": health_status
+        }
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Health check failed: {str(e)}"
         )

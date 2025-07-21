@@ -25,24 +25,27 @@ logger = logging.getLogger(__name__)
 def initialize_database():
     """Initialize database with tables and sample data"""
     
-    print("Database Initialization - Face Recognition Attendance System")
-    print("=" * 70)
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info("Database Initialization - Face Recognition Attendance System")
+    logger.info("=" * 70)
     
     # Test database connection first
-    print("Testing database connection...")
+    logger.info("Testing database connection...")
     if not test_connection():
-        print("ERROR: Database connection failed. Please check your configuration.")
+        logger.error("ERROR: Database connection failed. Please check your configuration.")
         return False
     
-    print("SUCCESS: Database connection successful")
+    logger.info("SUCCESS: Database connection successful")
     
     # Create tables
-    print("Creating database tables...")
+    logger.info("Creating database tables...")
     try:
         create_tables()
-        print("SUCCESS: Database tables created successfully")
+        logger.info("SUCCESS: Database tables created successfully")
     except Exception as e:
-        print(f"ERROR: Error creating tables: {e}")
+        logger.error(f"ERROR: Error creating tables: {e}")
         return False
     
     # Insert sample data

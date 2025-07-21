@@ -38,7 +38,14 @@ from utils.camera_config_loader import load_active_camera_configs, CameraConfig 
 from utils.auto_camera_detector import get_auto_detector, DetectedCamera, start_auto_detection
 from datetime import timedelta
 
-# Global variables for Django integration
+# Global variables for Django integration with thread synchronization
+import threading
+
+# Thread locks for global state protection
+_global_state_lock = threading.RLock()
+_log_buffer_lock = threading.Lock()
+_stats_lock = threading.Lock()
+
 system_instance = None
 is_tracking_running = False
 log_buffer = []
@@ -54,14 +61,16 @@ system_stats = {
 present_users_by_department = defaultdict(list)
 start_time = None
 
-def log_message(msg):
-    """Log messages to buffer instead of stdout"""
+def log_message(msg: str) -> None:
+    """Thread-safe log messages to buffer instead of stdout"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_entry = f"[{timestamp}] {msg}"
-    log_buffer.append(log_entry)
-    # Keep last 1000 log entries
-    if len(log_buffer) > 1000:
-        log_buffer.pop(0)
+    
+    with _log_buffer_lock:
+        log_buffer.append(log_entry)
+        # Keep last 1000 log entries
+        if len(log_buffer) > 1000:
+            log_buffer.pop(0)
 
 # Replace all print statements with log_message
 print = log_message
@@ -259,7 +268,8 @@ def load_employee_metadata(employee_id: str) -> Optional[EmployeeMetadata]:
                     return data
                 else:
                     return None
-        except:
+        except (FileNotFoundError, pickle.PickleError, KeyError, TypeError) as e:
+            log_message(f"Error loading employee metadata: {e}")
             return None
     return None
 
@@ -584,11 +594,12 @@ class FaceTrackingSystem:
                             dept = self.employee_metadata[emp_id].get('department', 'Unknown')
                             present_users_by_department[dept].append(emp_id)
             
-            # Update other stats
+            # Update other stats with thread safety
             cameras = load_camera_configurations()
-            system_stats["cam_count"] = len(cameras)
-            system_stats["faces_detected"] = len(active_tracks)
-            system_stats["attendance_count"] = len(latest_attendance)
+            with _stats_lock:
+                system_stats["cam_count"] = len(cameras)
+                system_stats["faces_detected"] = len(active_tracks)
+                system_stats["attendance_count"] = len(latest_attendance)
             
             time.sleep(5)  # Update every 5 seconds
 
@@ -1169,7 +1180,8 @@ class FaceTrackingSystem:
                     avg_intensity = np.mean(landmarks) / 255.0
                     return min(1.0, max(0.0, 1.0 - abs(avg_intensity - 0.5) * 2))
             return 0.5
-        except:
+        except (AttributeError, ValueError, TypeError) as e:
+            log_message(f"Error computing brightness score: {e}")
             return 0.5
 
     def _compute_sharpness_score(self, face, bbox) -> float:
@@ -1179,7 +1191,8 @@ class FaceTrackingSystem:
                 normalized_var = min(1.0, embedding_var / 0.1)
                 return normalized_var
             return 0.5
-        except:
+        except (AttributeError, ValueError, TypeError) as e:
+            log_message(f"Error computing sharpness score: {e}")
             return 0.5
 
     def _compute_face_angle_score(self, face) -> float:
@@ -1189,7 +1202,8 @@ class FaceTrackingSystem:
                 angle_penalty = (abs(yaw) + abs(pitch) + abs(roll)) / 90.0
                 return max(0.0, 1.0 - angle_penalty)
             return 0.8
-        except:
+        except (AttributeError, ValueError, TypeError) as e:
+            log_message(f"Error computing face angle score: {e}")
             return 0.8
 
     def _embedding_update_worker(self):
@@ -1441,7 +1455,15 @@ class FaceTrackingSystem:
         camera_source = camera_config.camera_id
         log_message(f"[Camera {camera_config.camera_id}] Using camera ID as source: {camera_source}")
         
-        cap = cv2.VideoCapture(camera_source)
+        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+        try:
+            import platform
+            if platform.system() == "Windows":
+                cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
+            else:
+                cap = cv2.VideoCapture(camera_source)
+        except Exception:
+            cap = cv2.VideoCapture(camera_source)
         if not cap.isOpened():
             log_message(f"[ERROR] Cannot open camera {camera_config.camera_id} with source: {camera_source}")
             return
@@ -1692,11 +1714,13 @@ class FaceTrackingPipeline:
             return self.system.get_active_camera_configs()
         return []
 def start_tracking_service():
-    """Start the face tracking system as a service"""
+    """Start the face tracking system as a service with thread safety"""
     global system_instance, is_tracking_running, start_time
-    if is_tracking_running:
-        log_message("Tracking service is already running")
-        return
+    
+    with _global_state_lock:
+        if is_tracking_running:
+            log_message("Tracking service is already running")
+            return
     
     log_message("Starting tracking service...")
     
@@ -1731,8 +1755,12 @@ def start_tracking_service():
             daemon=True
         )
         tracking_thread.start()
-        is_tracking_running = True
-        start_time = time.time()
+        
+        # Update global state with thread safety
+        with _global_state_lock:
+            is_tracking_running = True
+            start_time = time.time()
+        
         log_message("Tracking service started successfully")
         
         # Wait a moment to let tracking initialize
@@ -1751,22 +1779,25 @@ def start_tracking_service():
         raise e
 
 def shutdown_tracking_service():
-    """Shutdown the face tracking service"""
+    """Shutdown the face tracking service with thread safety"""
     global system_instance, is_tracking_running
-    if system_instance and is_tracking_running:
-        log_message("Shutting down tracking service...")
-        system_instance.shutdown()
-        is_tracking_running = False
-        log_message("Tracking service stopped")
-    else:
-        log_message("Tracking service is not running")
+    
+    with _global_state_lock:
+        if system_instance and is_tracking_running:
+            log_message("Shutting down tracking service...")
+            system_instance.shutdown()
+            is_tracking_running = False
+            log_message("Tracking service stopped")
+        else:
+            log_message("Tracking service is not running")
 
 def get_system_status():
-    """Get current system status and statistics"""
+    """Get current system status and statistics with thread safety"""
     global system_stats, start_time
-    if start_time:
-        system_stats["uptime"] = time.time() - start_time
-    return system_stats
+    with _stats_lock:
+        if start_time:
+            system_stats["uptime"] = time.time() - start_time
+        return system_stats.copy()  # Return a copy to prevent external modification
 
 def get_live_faces():
     """Get latest detected faces"""
@@ -1782,9 +1813,13 @@ def generate_mjpeg(camera_id: int):
     while is_tracking_running:
         if system_instance:
             frame = system_instance.get_latest_frame(camera_id)
-            if frame is not None:
-                ret, jpeg = cv2.imencode('.jpg', frame)
-                if ret:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            # ❗️ FIX: Enhanced frame validation before encoding
+            if frame is not None and frame.size > 0:
+                try:
+                    ret, jpeg = cv2.imencode('.jpg', frame)
+                    if ret and jpeg is not None:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                except Exception as e:
+                    log_message(f"Error encoding frame for camera {camera_id}: {e}")
         time.sleep(0.05)
