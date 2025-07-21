@@ -136,7 +136,15 @@ class CameraMonitor:
         
         try:
             # Initialize camera
-            cap = cv2.VideoCapture(camera_id)
+            # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+            try:
+                import platform
+                if platform.system() == "Windows":
+                    cap = cv2.VideoCapture(camera_id, cv2.CAP_MSMF)
+                else:
+                    cap = cv2.VideoCapture(camera_id)
+            except Exception:
+                cap = cv2.VideoCapture(camera_id)
             if not cap.isOpened():
                 logger.error(f"Failed to open camera {camera_id}")
                 return
@@ -148,9 +156,15 @@ class CameraMonitor:
             
             while self.active_cameras.get(camera_id, False) and not self._stop_event.is_set():
                 ret, frame = cap.read()
-                if not ret:
+                # ❗️ FIX: Enhanced frame validation to prevent processing errors
+                if not ret or frame is None:
                     logger.warning(f"Failed to read frame from camera {camera_id}")
                     time.sleep(0.1)
+                    continue
+                
+                # Validate frame is not empty
+                if frame.size == 0:
+                    logger.warning(f"Empty frame received from camera {camera_id}")
                     continue
                 
                 frame_count += 1
@@ -284,7 +298,15 @@ class StreamManager:
         
         try:
             # Initialize camera
-            cap = cv2.VideoCapture(camera_id)
+            # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+            try:
+                import platform
+                if platform.system() == "Windows":
+                    cap = cv2.VideoCapture(camera_id, cv2.CAP_MSMF)
+                else:
+                    cap = cv2.VideoCapture(camera_id)
+            except Exception:
+                cap = cv2.VideoCapture(camera_id)
             if not cap.isOpened():
                 raise RuntimeError(f"Failed to open camera {camera_id}")
             

@@ -1441,7 +1441,15 @@ class FaceTrackingSystem:
         camera_source = camera_config.camera_id
         log_message(f"[Camera {camera_config.camera_id}] Using camera ID as source: {camera_source}")
         
-        cap = cv2.VideoCapture(camera_source)
+                        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+                try:
+                    import platform
+                    if platform.system() == "Windows":
+                        cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
+                    else:
+                        cap = cv2.VideoCapture(camera_source)
+                except Exception:
+                    cap = cv2.VideoCapture(camera_source)
         if not cap.isOpened():
             log_message(f"[ERROR] Cannot open camera {camera_config.camera_id} with source: {camera_source}")
             return
@@ -1782,9 +1790,13 @@ def generate_mjpeg(camera_id: int):
     while is_tracking_running:
         if system_instance:
             frame = system_instance.get_latest_frame(camera_id)
-            if frame is not None:
-                ret, jpeg = cv2.imencode('.jpg', frame)
-                if ret:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            # ❗️ FIX: Enhanced frame validation before encoding
+            if frame is not None and frame.size > 0:
+                try:
+                    ret, jpeg = cv2.imencode('.jpg', frame)
+                    if ret and jpeg is not None:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                except Exception as e:
+                    log_message(f"Error encoding frame for camera {camera_id}: {e}")
         time.sleep(0.05)

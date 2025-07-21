@@ -49,8 +49,26 @@ export function DataTable<T>({
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // ❗️ FIX: Enhanced null/undefined handling with early return for loading state
+  if (!data && loading) {
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-4 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Ensure data is never null/undefined
-  const safeData = data || [];
+  const safeData = Array.isArray(data) ? data : [];
 
   // Filter and sort data
   const processedData = useMemo(() => {

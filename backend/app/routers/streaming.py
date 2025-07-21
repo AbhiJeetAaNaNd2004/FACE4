@@ -52,7 +52,16 @@ def detect_cameras():
     
     # Check for USB/built-in cameras (indices 0-10)
     for i in range(10):
-        cap = cv2.VideoCapture(i)
+        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+        try:
+            import platform
+            if platform.system() == "Windows":
+                cap = cv2.VideoCapture(i, cv2.CAP_MSMF)
+            else:
+                cap = cv2.VideoCapture(i)
+        except Exception:
+            cap = cv2.VideoCapture(i)
+        
         if cap.isOpened():
             ret, frame = cap.read()
             if ret and frame is not None:
@@ -174,7 +183,15 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
             if camera_source is None:
                 camera_source = camera_id
             
-            cap = cv2.VideoCapture(camera_source)
+            # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+            try:
+                import platform
+                if platform.system() == "Windows":
+                    cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
+                else:
+                    cap = cv2.VideoCapture(camera_source)
+            except Exception:
+                cap = cv2.VideoCapture(camera_source)
             
             if not cap.isOpened():
                 logger.error(f"Cannot open camera {camera_id}")
@@ -199,19 +216,22 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
             
             while True:
                 ret, frame = cap.read()
+                
+                # ❗️ FIX: Enhanced frame validation to prevent encoding errors
                 if not ret or frame is None:
-                    logger.warning(f"Failed to read frame from camera {camera_id}")
-                    # Generate "no signal" frame
-                    no_signal_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                    cv2.putText(no_signal_frame, "No Signal", (250, 240), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    _, buffer = cv2.imencode('.jpg', no_signal_frame)
-                    frame_bytes = buffer.tobytes()
-                else:
-                    # Add timestamp and camera info overlay
-                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                    cv2.putText(frame, f"Direct Camera {camera_id} - {timestamp}", (10, 30), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    logger.warning(f"Failed to read frame from camera {camera_id}. Stopping stream.")
+                    break  # Exit the loop cleanly instead of continuing
+                
+                # Validate frame is not empty
+                if frame.size == 0:
+                    logger.warning(f"Empty frame received from camera {camera_id}")
+                    continue
+                
+                # Add timestamp and camera info overlay
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                cv2.putText(frame, f"Direct Camera {camera_id} - {timestamp}", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
                 frame_count += 1
                 elapsed = time.time() - start_time
                 if elapsed > 0:
@@ -219,9 +239,16 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
                     cv2.putText(frame, f"FPS: {fps:.1f}", (10, 60), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 
-                # Encode frame as JPEG
-                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                frame_bytes = buffer.tobytes()
+                # ❗️ FIX: Safe frame encoding with error handling
+                try:
+                    ret_encode, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    if not ret_encode or buffer is None:
+                        logger.warning(f"Failed to encode frame from camera {camera_id}")
+                        continue
+                    frame_bytes = buffer.tobytes()
+                except Exception as e:
+                    logger.error(f"Error encoding frame from camera {camera_id}: {e}")
+                    continue
             
             # Yield frame in MJPEG format
             yield (b'--frame\r\n'
@@ -446,7 +473,8 @@ async def detect_available_cameras(
         try:
             from backend.utils.auto_camera_detector import get_auto_detector
             auto_detector = get_auto_detector()
-            detected_cameras = auto_detector.detect_all_cameras()
+            # ❗️ FIX: Properly await the async function
+            detected_cameras = await auto_detector.detect_all_cameras()
         except ImportError:
             detected_cameras = []
         
