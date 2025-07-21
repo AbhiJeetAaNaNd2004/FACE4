@@ -251,6 +251,17 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
                 return
+                
+    except Exception as e:
+        logger.error(f"Error in camera stream {camera_id}: {e}")
+        # Generate error frame
+        error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(error_frame, "Stream Error", (250, 240), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        _, buffer = cv2.imencode('.jpg', error_frame)
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 def generate_mock_mjpeg_stream() -> Generator[bytes, None, None]:
     """

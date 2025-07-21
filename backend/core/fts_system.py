@@ -1455,15 +1455,15 @@ class FaceTrackingSystem:
         camera_source = camera_config.camera_id
         log_message(f"[Camera {camera_config.camera_id}] Using camera ID as source: {camera_source}")
         
-                        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
-                try:
-                    import platform
-                    if platform.system() == "Windows":
-                        cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
-                    else:
-                        cap = cv2.VideoCapture(camera_source)
-                except Exception:
-                    cap = cv2.VideoCapture(camera_source)
+        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+        try:
+            import platform
+            if platform.system() == "Windows":
+                cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
+            else:
+                cap = cv2.VideoCapture(camera_source)
+        except Exception:
+            cap = cv2.VideoCapture(camera_source)
         if not cap.isOpened():
             log_message(f"[ERROR] Cannot open camera {camera_config.camera_id} with source: {camera_source}")
             return
