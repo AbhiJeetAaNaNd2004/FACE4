@@ -1,19 +1,20 @@
 import os
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import List
 
 class Settings(BaseSettings):
     # Database Configuration
-    DB_HOST: str = "localhost"
-    DB_PORT: str = "5432"
-    DB_NAME: str = "frs_db"
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "password"
+    DB_HOST: str = Field(default="localhost", description="Database host")
+    DB_PORT: str = Field(default="5432", description="Database port")
+    DB_NAME: str = Field(default="frs_db", description="Database name")
+    DB_USER: str = Field(default="postgres", description="Database user")
+    DB_PASSWORD: str = Field(..., description="Database password (required - set via environment variable)")
     
     # Security Configuration
-    SECRET_KEY: str = "your-secret-key-change-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    SECRET_KEY: str = Field(..., description="JWT secret key (required - set via environment variable)")
+    ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Token expiration time in minutes")
     
     # Application Configuration
     ENVIRONMENT: str = "development"

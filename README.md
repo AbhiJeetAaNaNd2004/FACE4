@@ -892,6 +892,70 @@ These fixes provide:
 - **Resource Management**: Proper cleanup of camera and network resources
 - **Graceful Degradation**: System continues operating when individual components fail
 
+### **🛠️ Backend Code Quality Improvements Applied**
+
+In addition to the critical error fixes above, comprehensive backend improvements have been implemented:
+
+#### **Security Enhancements**
+- **✅ Fixed Hardcoded Credentials**: Removed default passwords from `config.py`
+- **✅ Required Environment Variables**: Database and JWT secrets now require explicit configuration
+- **✅ Improved Authentication**: Enhanced token validation and role-based access control
+
+#### **Error Handling Standardization**
+- **✅ Eliminated Bare Except Clauses**: Replaced 6 instances of `except:` with specific exception handling
+- **✅ Custom Exception Classes**: Added `FRSBaseException`, `DatabaseError`, `CameraError`, etc.
+- **✅ Consistent Error Responses**: Standardized error formatting across all endpoints
+- **✅ Error Context Logging**: Added detailed error logging with context information
+
+#### **Thread Safety & Concurrency**
+- **✅ Global State Protection**: Added `threading.RLock()` for global variables in FTS system
+- **✅ Thread-Safe Logging**: Protected log buffer with `threading.Lock()`
+- **✅ Statistics Synchronization**: Added locks for system stats updates
+- **✅ Atomic Operations**: Ensured start/shutdown operations are thread-safe
+
+#### **Resource Management**
+- **✅ Context Managers**: Added `CameraResourceContext` for automatic camera cleanup
+- **✅ Database Context Manager**: Added `DatabaseOperationContext` for safe DB operations
+- **✅ Automatic Cleanup**: Ensures resources are released even on exceptions
+- **✅ Memory Leak Prevention**: Proper cleanup of OpenCV and database resources
+
+#### **Code Quality Improvements**
+- **✅ Replaced Print Statements**: Converted print statements to proper logging
+- **✅ Input Validation**: Added validation utilities for required fields and type conversion
+- **✅ Error Decorators**: Added `@handle_errors` decorator for consistent endpoint error handling
+- **✅ Type Safety**: Enhanced type hints and validation
+
+#### **Files Modified for Backend Improvements**
+- `backend/app/config.py` - Security and configuration improvements
+- `backend/app/main.py` - WebSocket error handling
+- `backend/core/fts_system.py` - Thread safety and error handling
+- `backend/utils/auto_camera_detector.py` - Exception specificity
+- `backend/db/db_manager.py` - Database error handling
+- `backend/app/routers/streaming.py` - Resource management with context managers
+- `backend/init_db.py` - Logging improvements
+- `backend/utils/error_handling.py` - New comprehensive error handling module
+
+#### **Environment Variables Now Required**
+After these fixes, you **must** set these environment variables:
+```bash
+# Required for security
+DB_PASSWORD=your_secure_database_password
+SECRET_KEY=your_jwt_secret_key_here
+
+# Optional (have defaults)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=frs_db
+DB_USER=postgres
+```
+
+#### **Benefits of These Improvements**
+1. **🔒 Enhanced Security**: No more hardcoded credentials
+2. **🐛 Better Debugging**: Specific exceptions with detailed context
+3. **⚡ Improved Performance**: Thread-safe operations and resource management
+4. **🔄 System Reliability**: Automatic cleanup and graceful error handling
+5. **📊 Better Monitoring**: Comprehensive logging and error tracking
+
 ### **📝 Log Files**
 Check application logs for detailed error information:
 

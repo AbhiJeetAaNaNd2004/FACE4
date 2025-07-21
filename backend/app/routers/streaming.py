@@ -183,18 +183,65 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
             if camera_source is None:
                 camera_source = camera_id
             
-            # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
-            try:
-                import platform
-                if platform.system() == "Windows":
-                    cap = cv2.VideoCapture(camera_source, cv2.CAP_MSMF)
-                else:
-                    cap = cv2.VideoCapture(camera_source)
-            except Exception:
-                cap = cv2.VideoCapture(camera_source)
+            # ❗️ FIX: Use context manager for proper camera resource management
+            from utils.error_handling import CameraResourceContext, CameraError
             
-            if not cap.isOpened():
-                logger.error(f"Cannot open camera {camera_id}")
+            try:
+                with CameraResourceContext(camera_source) as cap:
+                    # Set camera properties for better performance
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    cap.set(cv2.CAP_PROP_FPS, 30)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer size for lower latency
+                    
+                    frame_count = 0
+                    start_time = time.time()
+                    
+                    while True:
+                        ret, frame = cap.read()
+                        
+                        # ❗️ FIX: Enhanced frame validation to prevent encoding errors
+                        if not ret or frame is None:
+                            logger.warning(f"Failed to read frame from camera {camera_id}. Stopping stream.")
+                            break  # Exit the loop cleanly instead of continuing
+                        
+                        # Validate frame is not empty
+                        if frame.size == 0:
+                            logger.warning(f"Empty frame received from camera {camera_id}")
+                            continue
+                        
+                        # Add timestamp and camera info overlay
+                        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                        cv2.putText(frame, f"Direct Camera {camera_id} - {timestamp}", (10, 30), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                        
+                        frame_count += 1
+                        elapsed = time.time() - start_time
+                        if elapsed > 0:
+                            fps = frame_count / elapsed
+                            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 60), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                        
+                        # ❗️ FIX: Safe frame encoding with error handling
+                        try:
+                            ret_encode, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                            if not ret_encode or buffer is None:
+                                logger.warning(f"Failed to encode frame from camera {camera_id}")
+                                continue
+                            frame_bytes = buffer.tobytes()
+                        except Exception as e:
+                            logger.error(f"Error encoding frame from camera {camera_id}: {e}")
+                            continue
+                        
+                        # Yield frame in MJPEG format
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                        
+                        # Control frame rate
+                        time.sleep(1/30)  # 30 FPS
+                        
+            except CameraError as e:
+                logger.error(f"Camera error for camera {camera_id}: {e}")
                 # Generate error frame
                 error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
                 cv2.putText(error_frame, f"Camera {camera_id} not available", (50, 240), 
@@ -204,65 +251,6 @@ def generate_camera_stream(camera_id: int) -> Generator[bytes, None, None]:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
                 return
-            
-            # Set camera properties for better performance
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            cap.set(cv2.CAP_PROP_FPS, 30)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer size for lower latency
-            
-            frame_count = 0
-            start_time = time.time()
-            
-            while True:
-                ret, frame = cap.read()
-                
-                # ❗️ FIX: Enhanced frame validation to prevent encoding errors
-                if not ret or frame is None:
-                    logger.warning(f"Failed to read frame from camera {camera_id}. Stopping stream.")
-                    break  # Exit the loop cleanly instead of continuing
-                
-                # Validate frame is not empty
-                if frame.size == 0:
-                    logger.warning(f"Empty frame received from camera {camera_id}")
-                    continue
-                
-                # Add timestamp and camera info overlay
-                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                cv2.putText(frame, f"Direct Camera {camera_id} - {timestamp}", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                
-                frame_count += 1
-                elapsed = time.time() - start_time
-                if elapsed > 0:
-                    fps = frame_count / elapsed
-                    cv2.putText(frame, f"FPS: {fps:.1f}", (10, 60), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                
-                # ❗️ FIX: Safe frame encoding with error handling
-                try:
-                    ret_encode, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                    if not ret_encode or buffer is None:
-                        logger.warning(f"Failed to encode frame from camera {camera_id}")
-                        continue
-                    frame_bytes = buffer.tobytes()
-                except Exception as e:
-                    logger.error(f"Error encoding frame from camera {camera_id}: {e}")
-                    continue
-            
-            # Yield frame in MJPEG format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            
-            # Control frame rate
-            time.sleep(1/30)  # 30 FPS
-            
-    except Exception as e:
-        logger.error(f"Error in camera stream {camera_id}: {e}")
-    finally:
-        if cap:
-            cap.release()
-            logger.info(f"Released camera {camera_id}")
 
 def generate_mock_mjpeg_stream() -> Generator[bytes, None, None]:
     """

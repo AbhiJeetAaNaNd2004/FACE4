@@ -261,7 +261,8 @@ class AutoCameraDetector:
             result = sock.connect_ex((ip, port))
             sock.close()
             return result == 0
-        except:
+        except (socket.error, OSError, Exception) as e:
+            logger.debug(f"Port check failed for {ip}:{port}: {e}")
             return False
     
     def _test_stream_url(self, url: str, timeout: float = 3.0) -> bool:

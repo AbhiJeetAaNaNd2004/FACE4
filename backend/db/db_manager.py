@@ -693,8 +693,9 @@ class DatabaseManager:
             user.status = new_status
             session.commit()
             return True
-        except:
+        except Exception as e:
             session.rollback()
+            print(f"[DB] Error updating user status: {e}")
             return False
         finally:
             session.close()

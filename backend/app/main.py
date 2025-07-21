@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocket, WebSocketDisconnect
+from websockets.exceptions import ConnectionClosedError
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -43,14 +44,16 @@ class ConnectionManager:
     async def send_personal_message(self, message: str, websocket: WebSocket):
         try:
             await websocket.send_text(message)
-        except:
+        except (WebSocketDisconnect, ConnectionClosedError, Exception) as e:
+            logger.debug(f"WebSocket send failed: {e}")
             self.disconnect(websocket)
 
     async def broadcast(self, message: str):
         for connection in self.active_connections[:]:  # Create a copy to iterate safely
             try:
                 await connection.send_text(message)
-            except:
+            except (WebSocketDisconnect, ConnectionClosedError, Exception) as e:
+                logger.debug(f"WebSocket broadcast failed: {e}")
                 self.disconnect(connection)
 
 manager = ConnectionManager()
