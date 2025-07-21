@@ -1,0 +1,19 @@
+# Application logs will be written here
+2025-07-21 07:34:39 | INFO     | FaceTrackingSystem.app.main:129 | 🚀 Starting Face Recognition Attendance System API
+2025-07-21 07:34:39 | INFO     | FaceTrackingSystem.app.main:135 | ✅ Database tables initialized
+2025-07-21 07:34:39 | INFO     | FaceTrackingSystem.app.main:64 | 🔄 Initializing Face Tracking System...
+2025-07-21 07:34:39 | ERROR    | FaceTrackingSystem.app.main:99 | ❌ Error during FTS initialization: No module named 'torch'
+2025-07-21 07:34:39 | INFO     | FaceTrackingSystem.app.main:101 | 🎯 Face Recognition Attendance System API is ready!
+2025-07-21 07:34:55 | INFO     | FaceTrackingSystem.app.main:197 | HEAD / - 405 - 0.0005s
+2025-07-21 07:35:01 | INFO     | FaceTrackingSystem.app.main:197 | GET /docs - 200 - 0.0003s
+2025-07-21 07:35:02 | INFO     | FaceTrackingSystem.app.main:197 | GET /health - 200 - 0.0004s
+2025-07-21 07:35:08 | INFO     | FaceTrackingSystem.app.main:197 | GET /api/cameras/ - 404 - 0.0004s
+2025-07-21 07:35:09 | INFO     | FaceTrackingSystem.app.main:197 | GET /stream/available - 404 - 0.0002s
+2025-07-21 07:35:15 | INFO     | FaceTrackingSystem.app.main:197 | GET /openapi.json - 200 - 0.0296s
+2025-07-21 07:35:28 | INFO     | FaceTrackingSystem.app.main:197 | POST /auth/login/json - 200 - 0.2673s
+2025-07-21 07:35:36 | INFO     | FaceTrackingSystem.app.main:197 | GET /cameras/ - 401 - 0.0020s
+2025-07-21 07:35:42 | INFO     | FaceTrackingSystem.app.main:197 | POST /auth/login/json - 200 - 0.2278s
+2025-07-21 07:35:44 | INFO     | FaceTrackingSystem.app.main:197 | GET /cameras/ - 200 - 0.0148s
+2025-07-21 07:35:50 | INFO     | FaceTrackingSystem.app.main:197 | GET /stream/camera-status - 200 - 0.0072s
+2025-07-21 07:35:51 | INFO     | FaceTrackingSystem.app.main:197 | GET /stream/health - 200 - 0.0029s
+2025-07-21 07:37:46 | INFO     | FaceTrackingSystem.app.main:197 | GET /health - 200 - 0.0005s

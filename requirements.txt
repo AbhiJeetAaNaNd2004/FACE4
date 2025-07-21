@@ -1,0 +1,52 @@
+# Face Recognition Attendance System - Requirements
+# Comprehensive dependency list for full functionality
+
+# Core FastAPI Framework
+fastapi>=0.116.0
+uvicorn[standard]>=0.35.0
+python-multipart>=0.0.20
+
+# Database ORM and Management
+sqlalchemy>=2.0.30
+psycopg2-binary>=2.9.0
+alembic>=1.13.0
+
+# Authentication and Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Configuration Management
+pydantic>=2.10.0
+pydantic-settings>=2.5.0
+python-dotenv>=1.0.0
+
+# Core Utilities
+requests>=2.32.0
+httpx>=0.27.0
+aiofiles>=24.1.0
+python-dateutil>=2.9.0
+psutil>=5.9.0
+
+# Computer Vision and Face Recognition
+# Note: Install these one by one if you encounter conflicts
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+onnxruntime>=1.15.0
+faiss-cpu>=1.7.4
+insightface>=0.7.3
+
+# Data Science Support
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# Development and Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# WebSocket Support
+websockets>=13.0
+
+# Additional Utilities
+tqdm>=4.65.0
+python-magic>=0.4.27

@@ -1,0 +1,30 @@
+INFO:     Started server process [12726]
+INFO:     Waiting for application startup.
+2025-07-19 04:46:12,024 - app.main - INFO - 🚀 Starting Face Recognition Attendance System API
+2025-07-19 04:46:12,025 - root - INFO - Database tables created successfully
+2025-07-19 04:46:12,025 - app.main - INFO - ✅ Database tables initialized
+2025-07-19 04:46:12,025 - app.main - INFO - 🎯 Face Recognition Attendance System API is ready!
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-19 04:46:22,253 - app.main - INFO - GET / - 200 - 0.0005s
+INFO:     127.0.0.1:60660 - "GET / HTTP/1.1" 200 OK
+2025-07-19 04:46:42,810 - app.main - INFO - GET /health - 200 - 0.0005s
+INFO:     127.0.0.1:36270 - "GET /health HTTP/1.1" 200 OK
+2025-07-19 04:47:22,650 - app.main - INFO - GET /health - 200 - 0.0008s
+INFO:     127.0.0.1:50060 - "GET /health HTTP/1.1" 200 OK
+2025-07-19 04:47:56,703 - app.main - INFO - GET /health - 200 - 0.0003s
+INFO:     127.0.0.1:39302 - "GET /health HTTP/1.1" 200 OK
+2025-07-19 04:48:20,067 - app.main - INFO - GET / - 200 - 0.0003s
+INFO:     127.0.0.1:41474 - "GET / HTTP/1.1" 200 OK
+2025-07-19 04:48:21,077 - app.main - INFO - HEAD /docs - 200 - 0.0003s
+INFO:     127.0.0.1:41482 - "HEAD /docs HTTP/1.1" 200 OK
+2025-07-19 04:49:05,549 - app.main - INFO - GET /api/employees/list - 404 - 0.0004s
+INFO:     127.0.0.1:43378 - "GET /api/employees/list HTTP/1.1" 404 Not Found
+2025-07-19 04:49:06,721 - app.main - INFO - GET /api/cameras/list - 404 - 0.0003s
+INFO:     127.0.0.1:43382 - "GET /api/cameras/list HTTP/1.1" 404 Not Found
+2025-07-19 04:49:12,478 - app.main - INFO - GET /docs - 200 - 0.0002s
+INFO:     127.0.0.1:38538 - "GET /docs HTTP/1.1" 200 OK
+2025-07-19 04:49:27,756 - app.main - INFO - GET /employees/ - 401 - 0.0025s
+INFO:     127.0.0.1:38464 - "GET /employees/ HTTP/1.1" 401 Unauthorized
+2025-07-19 04:49:28,927 - app.main - INFO - GET /cameras/ - 401 - 0.0004s
+INFO:     127.0.0.1:38470 - "GET /cameras/ HTTP/1.1" 401 Unauthorized
