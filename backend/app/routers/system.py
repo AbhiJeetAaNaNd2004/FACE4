@@ -120,13 +120,37 @@ async def start_face_detection_system(
                 message="Face detection system is not available. Please check FTS installation."
             )
         
-        if fts_functions['is_tracking_running']:
+        # Check if already running (handle both callable and variable)
+        is_running = fts_functions.get('is_tracking_running')
+        if callable(is_running):
+            running_status = is_running()
+        else:
+            running_status = bool(is_running)
+            
+        if running_status:
             return MessageResponse(
                 success=False,
                 message="Face detection system is already running"
             )
         
-        fts_functions['start_tracking_service']()
+        # Check for available cameras before starting
+        try:
+            from app.routers.streaming import detect_cameras
+            available_cameras = detect_cameras()
+            if not available_cameras:
+                logger.warning("No cameras detected, but starting FTS anyway")
+        except Exception as e:
+            logger.warning(f"Could not detect cameras: {e}")
+        
+        # Start the service
+        start_func = fts_functions.get('start_tracking_service')
+        if not start_func or not callable(start_func):
+            return MessageResponse(
+                success=False,
+                message="Start function is not available"
+            )
+            
+        start_func()
         logger.info(f"Face detection system started by user {current_user.username}")
         
         return MessageResponse(
@@ -156,13 +180,28 @@ async def stop_face_detection_system(
                 message="Face detection system is not available. Please check FTS installation."
             )
         
-        if not fts_functions['is_tracking_running']:
+        # Check if running (handle both callable and variable)
+        is_running = fts_functions.get('is_tracking_running')
+        if callable(is_running):
+            running_status = is_running()
+        else:
+            running_status = bool(is_running)
+            
+        if not running_status:
             return MessageResponse(
                 success=False,
                 message="Face detection system is not running"
             )
         
-        fts_functions['shutdown_tracking_service']()
+        # Stop the service
+        stop_func = fts_functions.get('shutdown_tracking_service')
+        if not stop_func or not callable(stop_func):
+            return MessageResponse(
+                success=False,
+                message="Stop function is not available"
+            )
+            
+        stop_func()
         logger.info(f"Face detection system stopped by user {current_user.username}")
         
         return MessageResponse(

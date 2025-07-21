@@ -50,37 +50,55 @@ def detect_cameras():
     """Detect available cameras on the system"""
     available_cameras = []
     
-    # Check for USB/built-in cameras (indices 0-10)
-    for i in range(10):
-        # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
-        try:
-            import platform
-            if platform.system() == "Windows":
-                cap = cv2.VideoCapture(i, cv2.CAP_MSMF)
-            else:
-                cap = cv2.VideoCapture(i)
-        except Exception:
-            cap = cv2.VideoCapture(i)
-        
-        if cap.isOpened():
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                # Get camera properties
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                fps = int(cap.get(cv2.CAP_PROP_FPS))
+    try:
+        # Check for USB/built-in cameras (indices 0-10)
+        for i in range(10):
+            cap = None
+            try:
+                # ❗️ FIX: Use MSMF backend on Windows for better camera compatibility
+                import platform
+                if platform.system() == "Windows":
+                    cap = cv2.VideoCapture(i, cv2.CAP_MSMF)
+                else:
+                    cap = cv2.VideoCapture(i)
                 
-                available_cameras.append({
-                    "id": i,
-                    "name": f"Camera {i}",
-                    "type": "USB/Built-in",
-                    "status": "active",
-                    "resolution": f"{width}x{height}",
-                    "fps": fps,
-                    "last_seen": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                })
-                logger.info(f"Detected camera {i}: {width}x{height} @ {fps}fps")
-            cap.release()
+                if cap and cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        # Get camera properties with safe defaults
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 480)
+                        fps = int(cap.get(cv2.CAP_PROP_FPS) or 30)
+                        
+                        available_cameras.append({
+                            "id": i,
+                            "name": f"Camera {i}",
+                            "type": "USB/Built-in",
+                            "status": "active",
+                            "resolution": f"{width}x{height}",
+                            "fps": fps,
+                            "last_seen": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        })
+                        logger.info(f"Detected camera {i}: {width}x{height} @ {fps}fps")
+            except Exception as e:
+                logger.debug(f"Camera {i} detection failed: {e}")
+            finally:
+                if cap:
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+        
+        # Log result
+        if not available_cameras:
+            logger.info("No cameras detected on the system")
+        else:
+            logger.info(f"Detected {len(available_cameras)} cameras")
+            
+    except Exception as e:
+        logger.error(f"Camera detection failed: {e}")
+        # Return empty list on error
+        available_cameras = []
     
     return available_cameras
 

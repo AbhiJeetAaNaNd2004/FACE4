@@ -101,12 +101,17 @@ async def get_cameras(
     try:
         db_manager = DatabaseManager()
         
+        # Handle null/invalid filters gracefully
         if active_only:
             cameras = db_manager.get_active_cameras()
-        elif status_filter:
+        elif status_filter and status_filter.strip():  # Check for empty/whitespace strings
             cameras = db_manager.get_cameras_by_status(status_filter)
         else:
             cameras = db_manager.get_all_cameras()
+        
+        # Ensure cameras is not None
+        if cameras is None:
+            cameras = []
         
         # Convert to response format
         camera_infos = []
