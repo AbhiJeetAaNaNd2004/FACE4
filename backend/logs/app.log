@@ -17,3 +17,8 @@
 2025-07-21 07:35:50 | INFO     | FaceTrackingSystem.app.main:197 | GET /stream/camera-status - 200 - 0.0072s
 2025-07-21 07:35:51 | INFO     | FaceTrackingSystem.app.main:197 | GET /stream/health - 200 - 0.0029s
 2025-07-21 07:37:46 | INFO     | FaceTrackingSystem.app.main:197 | GET /health - 200 - 0.0005s
+2025-07-21 09:15:35 | INFO     | FaceTrackingSystem.app.main:129 | 🚀 Starting Face Recognition Attendance System API
+2025-07-21 09:15:35 | ERROR    | FaceTrackingSystem.app.main:137 | ❌ Database initialization failed: (psycopg2.OperationalError) connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

@@ -55,7 +55,7 @@ class ONVIFCameraDiscovery:
     </soap:Body>
 </soap:Envelope>"""
 
-    def __init__(self, timeout: int = 5):
+    def __init__(self, timeout: int = 10):
         self.timeout = timeout
         self.discovered_cameras: List[CameraInfo] = []
 
@@ -132,24 +132,38 @@ class ONVIFCameraDiscovery:
         
         try:
             network = IPv4Network(network_range, strict=False)
+            hosts = list(network.hosts())
+            total_hosts = len(hosts)
             
-            # Use ThreadPoolExecutor for parallel scanning
-            with ThreadPoolExecutor(max_workers=50) as executor:
-                futures = []
+            logger.info(f"Starting port scan on {total_hosts} hosts and {len(common_ports)} ports.")
+
+            with ThreadPoolExecutor(max_workers=100) as executor:
+                futures = [executor.submit(self._check_camera_port, str(ip), port)
+                           for ip in hosts for port in common_ports]
                 
-                for ip in network.hosts():
-                    for port in common_ports:
-                        future = executor.submit(self._check_camera_port, str(ip), port)
-                        futures.append(future)
+                completed_count = 0
+                total_futures = len(futures)
                 
-                for future in as_completed(futures, timeout=self.timeout * 2):
-                    try:
-                        result = future.result()
-                        if result:
-                            cameras.append(result)
-                    except Exception as e:
-                        logger.debug(f"Port scan error: {e}")
+                try:
+                    for future in as_completed(futures, timeout=self.timeout * 5):
+                        try:
+                            result = future.result()
+                            if result:
+                                cameras.append(result)
+                        except Exception as e:
+                            logger.debug(f"Port scan task error: {e}")
                         
+                        completed_count += 1
+                        if completed_count % 100 == 0:
+                            logger.info(f"Port scan progress: {completed_count}/{total_futures} tasks completed.")
+
+                except Exception as e:
+                    logger.error(f"Port scan as_completed error: {e}")
+
+                unfinished_futures = total_futures - completed_count
+                if unfinished_futures > 0:
+                    logger.warning(f"Port scan discovery timed out: {unfinished_futures} (of {total_futures}) futures unfinished")
+
         except Exception as e:
             logger.error(f"Port scan discovery failed: {e}")
             
@@ -158,25 +172,21 @@ class ONVIFCameraDiscovery:
     def _check_camera_port(self, ip: str, port: int) -> Optional[CameraInfo]:
         """Check if a specific IP:port combination is a camera"""
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2)
-            result = sock.connect_ex((ip, port))
-            sock.close()
-            
-            if result == 0:
-                # Port is open, try to identify if it's a camera
-                if self._is_camera_service(ip, port):
-                    return CameraInfo(
-                        ip_address=ip,
-                        port=port,
-                        manufacturer="Unknown",
-                        model="Unknown",
-                        firmware_version="Unknown",
-                        stream_urls=[],
-                        onvif_supported=False,
-                        device_service_url="",
-                        media_service_url=""
-                    )
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(2)
+                if sock.connect_ex((ip, port)) == 0:
+                    if self._is_camera_service(ip, port):
+                        return CameraInfo(
+                            ip_address=ip,
+                            port=port,
+                            manufacturer="Unknown",
+                            model="Unknown",
+                            firmware_version="Unknown",
+                            stream_urls=[],
+                            onvif_supported=False,
+                            device_service_url="",
+                            media_service_url=""
+                        )
         except Exception:
             pass
         
@@ -409,7 +419,7 @@ class ONVIFCameraDiscovery:
         return self.discovered_cameras
 
 # Convenience function for quick discovery
-async def discover_cameras_on_network(network_range: str = "192.168.1.0/24", timeout: int = 5) -> List[CameraInfo]:
+async def discover_cameras_on_network(network_range: str = "192.168.1.0/24", timeout: int = 10) -> List[CameraInfo]:
     """
     Convenience function to discover cameras on the network
     
