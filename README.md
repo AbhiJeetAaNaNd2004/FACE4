@@ -24,6 +24,7 @@ A comprehensive face recognition-based attendance tracking system with real-time
 9. [Camera Management](#-camera-management)
 10. [Usage Guide](#-usage-guide)
 11. [Troubleshooting](#-troubleshooting)
+    - [Critical Error Fixes](#-critical-error-fixes-applied)
 12. [Performance Optimization](#-performance-optimization)
 13. [Production Deployment](#-production-deployment)
 14. [API Documentation](#-api-documentation)
@@ -801,6 +802,95 @@ cd ..
    FACE_DETECTION_THRESHOLD=0.4  # Lower = more sensitive
    FACE_RECOGNITION_THRESHOLD=0.5 # Lower = more lenient
    ```
+
+### **🔧 Critical Error Fixes Applied**
+
+The following critical errors have been identified and fixed in the system. These fixes address common crashes and stability issues:
+
+#### **Error 1: Frontend Crash - "Cannot read properties of null"**
+**Problem**: React frontend crashes when trying to render DataTable with null/undefined data
+```
+TypeError: Cannot read properties of null (reading 'length')
+at DataTable component
+```
+
+**✅ Fixed**: Enhanced DataTable component with comprehensive null handling
+- Added early loading state detection
+- Implemented proper array validation with `Array.isArray()`
+- Added skeleton UI for loading states
+- **File**: `frontend/src/components/ui/DataTable.tsx`
+
+#### **Error 2: OpenCV Camera Access Failure**
+**Problem**: DSHOW backend fails to access cameras on Windows
+```
+[ WARN:0@14.946] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): 
+backend is generally available but can't be used to capture by index
+```
+
+**✅ Fixed**: Implemented platform-specific camera backends
+- Windows: Uses `cv2.CAP_MSMF` for better compatibility
+- Linux: Uses default V4L2 backend
+- Fallback: Default OpenCV backend if platform-specific fails
+- **Files**: `backend/app/routers/streaming.py`, `backend/core/fts_system.py`, `backend/tasks/camera_tasks.py`
+
+#### **Error 3: Frame Encoding Crashes**
+**Problem**: OpenCV crashes when trying to encode null/empty frames
+```
+error: (-215:Assertion failed) !_img.empty() in function 'cv::imencode'
+```
+
+**✅ Fixed**: Added comprehensive frame validation
+- Check for `ret`, `frame is not None`, and `frame.size > 0` before encoding
+- Added proper error handling with try-catch blocks
+- Exit streaming loops cleanly when camera fails
+- **Files**: All streaming and camera processing modules
+
+#### **Error 4: Unawaited Coroutine Warning**
+**Problem**: Async function called without await causing 422 errors
+```
+RuntimeWarning: coroutine 'AutoCameraDetector.detect_all_cameras' was never awaited
+INFO: 127.0.0.1:61650 - "GET /cameras/detected HTTP/1.1" 422 Unprocessable Entity
+```
+
+**✅ Fixed**: Properly awaited all async functions
+- Added missing `await` keywords
+- Fixed async/sync function compatibility
+- **File**: `backend/app/routers/streaming.py` (line 448)
+
+#### **Error 5: Network Scan Timeout Issues**
+**Problem**: Port scanning fails with unfinished futures
+```
+ERROR:utils.camera_discovery:Port scan discovery failed: 1533 (of 1778) futures unfinished
+```
+
+**✅ Fixed**: Replaced blocking operations with proper async patterns
+- Implemented `asyncio.Semaphore(50)` for connection limiting
+- Added `asyncio.wait_for()` with timeout handling
+- Replaced ThreadPoolExecutor with native asyncio
+- Added `aiohttp>=3.8.0` for async HTTP requests
+- **File**: `backend/utils/camera_discovery.py`
+
+#### **Error 6: CUDA Provider Warnings**
+**Problem**: ONNX runtime warnings about unavailable CUDA
+```
+UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names
+Available providers: 'AzureExecutionProvider, CPUExecutionProvider'
+```
+
+**ℹ️ Note**: This is a warning, not an error. The system automatically falls back to CPU processing when GPU is unavailable. To enable GPU acceleration:
+```bash
+# Install CUDA toolkit from NVIDIA (for Windows/Linux)
+# Then install GPU-accelerated packages:
+pip install onnxruntime-gpu
+```
+
+#### **System Stability Improvements**
+These fixes provide:
+- **Enhanced Error Handling**: All critical paths now have proper validation
+- **Platform Compatibility**: Automatic detection and appropriate backend selection
+- **Async Safety**: All async functions properly awaited with timeout management
+- **Resource Management**: Proper cleanup of camera and network resources
+- **Graceful Degradation**: System continues operating when individual components fail
 
 ### **📝 Log Files**
 Check application logs for detailed error information:
