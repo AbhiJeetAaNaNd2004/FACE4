@@ -724,8 +724,10 @@ async def reload_camera_configurations(
     (Super Admin only)
     """
     try:
-        # Import here to avoid circular imports
-        from core.fts_system import system_instance
+        # Delayed import to avoid circular imports
+        import importlib
+        fts_module = importlib.import_module('core.fts_system')
+        system_instance = getattr(fts_module, 'system_instance', None)
         
         if system_instance:
             system_instance.reload_camera_configurations()
@@ -934,9 +936,12 @@ async def update_camera_settings(
                 detail="Failed to update camera settings"
             )
         
-        # If FTS is running, reload camera configurations
+        # If FTS is running, reload camera configurations (delayed import)
         try:
-            from core.fts_system import system_instance, is_tracking_running
+            import importlib
+            fts_module = importlib.import_module('core.fts_system')
+            system_instance = getattr(fts_module, 'system_instance', None)
+            is_tracking_running = getattr(fts_module, 'is_tracking_running', False)
             if is_tracking_running and system_instance:
                 # Trigger camera config reload in FTS
                 system_instance.reload_camera_configurations()

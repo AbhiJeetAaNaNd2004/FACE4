@@ -6,6 +6,9 @@ import numpy as np
 import pickle
 import logging
 from datetime import datetime, timedelta
+
+# Set up logging for this module
+logger = logging.getLogger(__name__)
 from typing import List, Dict, Optional, Tuple
 from io import BytesIO
 import threading
@@ -87,13 +90,13 @@ class DatabaseManager:
             )
             session.add(new_embedding)
             session.commit()
-            print(f"[DB] Stored embedding for {employee_id}")
+            logger.info(f"[DB] Stored embedding for {employee_id}")
             return True
 
         except Exception as e:
             if session:
                 session.rollback()
-            print(f"[DB] Error storing embedding for {employee_id}: {e}")
+            logger.error(f"[DB] Error storing embedding for {employee_id}: {e}")
             return False
 
         finally:
@@ -695,7 +698,7 @@ class DatabaseManager:
             return True
         except Exception as e:
             session.rollback()
-            print(f"[DB] Error updating user status: {e}")
+            logger.error(f"[DB] Error updating user status: {e}")
             return False
         finally:
             session.close()

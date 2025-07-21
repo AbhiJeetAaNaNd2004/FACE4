@@ -40,12 +40,12 @@ def initialize_database():
     logger.info("SUCCESS: Database connection successful")
     
     # Create tables
-    print("Creating database tables...")
+    logger.info("Creating database tables...")
     try:
         create_tables()
-        print("SUCCESS: Database tables created successfully")
+        logger.info("SUCCESS: Database tables created successfully")
     except Exception as e:
-        print(f"ERROR: Error creating tables: {e}")
+        logger.error(f"ERROR: Error creating tables: {e}")
         return False
     
     # Insert sample data

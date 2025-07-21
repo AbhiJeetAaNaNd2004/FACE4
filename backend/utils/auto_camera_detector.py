@@ -541,8 +541,18 @@ class AutoCameraDetector:
                     logger.error(f"Error in continuous detection: {e}")
                     await asyncio.sleep(10)  # Wait before retrying
         
-        # Run the async function in this thread
-        asyncio.run(async_detection_work())
+        # Run the async function in this thread (safe way)
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is running, create task instead of using asyncio.run()
+                loop.create_task(async_detection_work())
+            else:
+                loop.run_until_complete(async_detection_work())
+        except RuntimeError:
+            # No event loop exists, create new one
+            asyncio.run(async_detection_work())
 
 # Global instance
 auto_detector = AutoCameraDetector()

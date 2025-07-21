@@ -61,7 +61,7 @@ system_stats = {
 present_users_by_department = defaultdict(list)
 start_time = None
 
-def log_message(msg):
+def log_message(msg: str) -> None:
     """Thread-safe log messages to buffer instead of stdout"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_entry = f"[{timestamp}] {msg}"
